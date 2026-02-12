@@ -6,8 +6,8 @@ export default async function handler(req, res) {
   try {
     const { message } = req.body;
 
-    if (!message) {
-      return res.status(400).json({ error: "Message is required" });
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Valid message is required" });
     }
 
     const response = await fetch(
@@ -28,19 +28,31 @@ export default async function handler(req, res) {
       }
     );
 
-    const data = await response.json();
-
-    if (data.candidates?.length > 0) {
-      const reply = data.candidates[0].content.parts
-        .map((p) => p.text || "")
-        .join("");
-
-      return res.status(200).json({ reply });
+    // 🔥 Cek status response dulu
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json({
+        error: errorData.error?.message || "AI request failed",
+      });
     }
 
-    return res.status(500).json({ error: "No response from AI" });
+    const data = await response.json();
+
+    const reply =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((p) => p.text || "")
+        .join("") || null;
+
+    if (!reply) {
+      return res.status(500).json({ error: "Empty AI response" });
+    }
+
+    return res.status(200).json({ reply });
 
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("AI Error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
   }
 }
